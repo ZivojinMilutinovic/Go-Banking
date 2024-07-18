@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  postgres_transactions:
+    image: postgres:13
+    container_name: postgres_transactions
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: transactions_microservice
+    volumes:
+      - transactions_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  postgres_users:
+    image: postgres:13
+    container_name: postgres_users
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: users_microservice
+    volumes:
+      - users_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+
+  transactions-microservice:
+    build: ./transactions-microservice
+    container_name: transactions_microservice
+    environment:
+      - DB_HOST=postgres_transactions
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=admin
+      - DB_NAME=transactions_microservice
+      - KAFKA_BROKER=kafka:9092
+      - NATS_SERVER=nats:4222
+    depends_on:
+      - postgres_transactions
+      - kafka
+      - nats
+    ports:
+      - "8081:8081"
+
+  users-microservice:
+    build: ./users-microservice
+    container_name: users_microservice
+    environment:
+      - DB_HOST=postgres_users
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=admin
+      - DB_NAME=users_microservice
+      - KAFKA_BROKER=kafka:9092
+      - NATS_SERVER=nats:4222
+    depends_on:
+      - postgres_users
+      - kafka
+      - nats
+    ports:
+      - "8080:8080"
+
+  kafka:
+    image: wurstmeister/kafka:2.13-2.7.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image:  bitnami/zookeeper:latest
+    container_name: zookeeper
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: yes
+    ports:
+      - "2181:2181"
+
+  nats:
+    image: nats:latest
+    container_name: nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+volumes:
+  transactions_data:
+  users_data:
